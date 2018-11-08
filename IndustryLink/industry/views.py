@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 import gensim
 import jieba.posseg as pseg
+import matplotlib as plt
 from industry.models import *
 
 
@@ -16,6 +17,26 @@ def file_name(file_dir):
             if os.path.splitext(file)[1] == '.txt':
                 L.append(os.path.join(root, file))
     return L
+
+
+def train_data_build():
+    file = r'F:\train_data.txt'
+    names = file_name('F:\\data')
+    for name in names:
+        f = open(name, errors='ignore')
+        st = f.read()
+        with open(file, 'a+') as f:
+            seg_list = jieba.cut(st, cut_all=False)
+            f.write(" ".join(seg_list))
+            f.write('\n')
+        f.close()
+
+
+def train_data():
+    from gensim.models import word2vec
+    sentences = word2vec.Text8Corpus('F:\\train_data.txt')
+    model = word2vec.Word2Vec(sentences, size=50)
+    model.save('word2vec_model')
 
 
 def getXMLContent():
@@ -70,8 +91,6 @@ def SVM():
     sess = tf.Session()
     words = Divided.objects.all()
     model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
-    # word_list = ['煤炭', '石油', '通过', '石英石', '天下', '加强', '持有', '电池', '生物', '棉花']
-    # result = [1, 1, -1, 1, -1, -1, -1, 1, 1, 1]
     x_vals = np.array([model[word.name].tolist() for word in words])
     y_vals = np.array([1 if word.is_industry else -1 for word in words])
     train_indices = np.random.choice(len(x_vals), round(len(x_vals) * 0.8), replace=False)
