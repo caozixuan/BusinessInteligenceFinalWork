@@ -46,3 +46,49 @@ class WordTest(models.Model):
     sentence_id = models.IntegerField(null=False)
     name=models.CharField(max_length=100)
     div_type=models.IntegerField(null=True,default=0)
+
+
+class Context(models.Model):
+    entity = models.CharField(max_length=100)
+    div_type = models.IntegerField(null=True, default=0)
+    up1=models.CharField(max_length=100)
+    up2 = models.CharField(max_length=100)
+    up3 = models.CharField(max_length=100)
+    up4 = models.CharField(max_length=100)
+    up5 = models.CharField(max_length=100)
+    down1=models.CharField(max_length=100)
+    down2 = models.CharField(max_length=100)
+    down3 = models.CharField(max_length=100)
+    down4 = models.CharField(max_length=100)
+    down5 = models.CharField(max_length=100)
+
+
+class ContextTest(models.Model):
+    entity = models.CharField(max_length=100)
+    div_type = models.IntegerField(null=True, default=0)
+    up1=models.CharField(max_length=100)
+    up2 = models.CharField(max_length=100)
+    up3 = models.CharField(max_length=100)
+    up4 = models.CharField(max_length=100)
+    up5 = models.CharField(max_length=100)
+    down1=models.CharField(max_length=100)
+    down2 = models.CharField(max_length=100)
+    down3 = models.CharField(max_length=100)
+    down4 = models.CharField(max_length=100)
+    down5 = models.CharField(max_length=100)
+
+
+class Article(models.Model):
+    entity = models.CharField(max_length=100)
+    div_type = models.IntegerField(null=True, default=0)
+    position = models.CharField(max_length=50)
+    up1=models.CharField(max_length=100)
+    up2 = models.CharField(max_length=100)
+    up3 = models.CharField(max_length=100)
+    up4 = models.CharField(max_length=100)
+    up5 = models.CharField(max_length=100)
+    down1=models.CharField(max_length=100)
+    down2 = models.CharField(max_length=100)
+    down3 = models.CharField(max_length=100)
+    down4 = models.CharField(max_length=100)
+    down5 = models.CharField(max_length=100)

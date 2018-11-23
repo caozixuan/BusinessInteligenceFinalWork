@@ -6,15 +6,18 @@ import numpy as np
 import tensorflow as tf
 import gensim
 import jieba.posseg as pseg
+from functools import reduce
 import matplotlib.pyplot as plt
 from industry.models import *
+from industry.util import *
 
-rule_up = [r'(.*)上游(.*)',r'使用(.*)']
-rule_down = [r'(.*)下游(.*)',r'(.*)行业下游情况(.*)',r'应用于(.*)']
+rule_up = [r'(.*)上游(.*)', r'使用(.*)']
+rule_down = [r'(.*)下游(.*)', r'(.*)行业下游情况(.*)', r'应用于(.*)']
 rule_mid = [r'主营业务(.*)']
 rule_company = r'(.*)股份有限公司'
-fields = ['能源','电力','冶金','化工','机电','电子','交通','房产','建材','医药','农林','安防','服装','包装',
-         '环保','玩具','IT','通信','数码','家电','家居','文教','办公','金融','培训','旅游','食品','烟酒','礼品']
+fields = ['能源', '电力', '冶金', '化工', '机电', '电子', '交通', '房产', '建材', '医药', '农林', '安防', '服装', '包装',
+          '环保', '玩具', 'IT', '通信', '数码', '家电', '家居', '文教', '办公', '金融', '培训', '旅游', '食品', '烟酒', '礼品']
+
 
 def file_name(file_dir):
     L = []
@@ -47,14 +50,14 @@ def train_data():
 
 def getXMLContent():
     names = file_name('E:\\temp_data\\tmp')
-    rule1 =r'<contenttitle>(.+?)</contenttitle>'
+    rule1 = r'<contenttitle>(.+?)</contenttitle>'
     rule2 = r'<content>(.+?)</content>'
     file = r'D:\news.txt'
     compile_name = re.compile(rule1, re.M)
     compile_name2 = re.compile(rule2, re.M)
     for name in names:
-        f = open(name,errors='ignore')
-        st=f.read()
+        f = open(name, errors='ignore')
+        st = f.read()
         res_name = compile_name.findall(st)
         res_name2 = compile_name2.findall(st)
         counter = 0
@@ -78,9 +81,9 @@ def buildData():
         st = f.read()
         res_name = compile_name.findall(st)
         for sentence in res_name:
-            seg_list = jieba.lcut(sentence,cut_all=False)
-            word = seg_list[len(seg_list)-2]
-            if len(word)<=1:
+            seg_list = jieba.lcut(sentence, cut_all=False)
+            word = seg_list[len(seg_list) - 2]
+            if len(word) <= 1:
                 continue
             values = pseg.cut(word)
             flag_word = True
@@ -123,7 +126,7 @@ def SVM():
     prediction = tf.sign(model_output)
     accuracy = tf.reduce_mean(tf.cast(tf.equal(prediction, y_target), tf.float32))
     train_step = tf.train.GradientDescentOptimizer(0.01).minimize(loss)
-    #saver = tf.train.Saver()
+    # saver = tf.train.Saver()
     # 开始训练
     sess.run(tf.global_variables_initializer())
     loss_vec = []
@@ -143,7 +146,7 @@ def SVM():
         if (i + 1) % 100 == 0:
             print('Step #' + str(i + 1) + ' W = ' + str(sess.run(W)) + 'b = ' + str(sess.run(b)))
             print('Loss = ' + str(test_acc_temp))
-    #saver.save(sess, "./model/model.ckpt")
+    # saver.save(sess, "./model/model.ckpt")
     print(train_accuracy)
     print(test_accuracy)
     plt.plot(loss_vec)
@@ -155,29 +158,28 @@ def SVM():
 
 
 def buildDivided():
-    counter= 238
-    while counter <1400:
+    counter = 238
+    while counter < 1400:
         word = Dictionary.objects.get(id=counter)
-        Divided.objects.get_or_create(name=word.name,is_industry=word.is_industry)
-        counter = counter+1
+        Divided.objects.get_or_create(name=word.name, is_industry=word.is_industry)
+        counter = counter + 1
 
 
 def delete_word():
-
     words = Dictionary.objects.all()
     model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
     for word in words:
         try:
-            x= model[word.name]
+            x = model[word.name]
         except  KeyError:
             print(word.name)
-            Dictionary.objects.get(name = word.name).delete()
+            Dictionary.objects.get(name=word.name).delete()
 
 
 def predict_word():
     sess = tf.Session()
     model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
-    #x_vals = np.array([model[keyword].tolist()])
+    # x_vals = np.array([model[keyword].tolist()])
     words = Dictionary.objects.all()
     x_vals = np.array([model[word.name].tolist() for word in words])
     x_data = tf.placeholder(shape=[None, 256], dtype=tf.float32)
@@ -200,25 +202,58 @@ def predict_word():
         saver.restore(sess, "./model/model.ckpt")
         print(sess.run(prediction, feed_dict={x_data: x_vals}).tolist())
         predict_list = sess.run(prediction, feed_dict={x_data: x_vals}).tolist()
-        words=Dictionary.objects.all()
-        counter=0
+        words = Dictionary.objects.all()
+        counter = 0
         for result in predict_list:
-            if result[0]==1.0:
+            if result[0] == 1.0:
                 Dictionary.objects.filter(id=words[counter].id).update(is_industry=True)
-            counter = counter+1
-        #precision 95/104   recall:95/125
+            counter = counter + 1
+            # precision 95/104   recall:95/125
+
+
+def predict_single_word_with_svm(word):
+    sess = tf.Session()
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    # x_vals = np.array([model[keyword].tolist()])
+    x_vals = np.array([model[word]])
+    x_data = tf.placeholder(shape=[None, 256], dtype=tf.float32)
+    y_target = tf.placeholder(shape=[None, 1], dtype=tf.float32)
+    W = tf.Variable(tf.random_normal(shape=[256, 1]))
+    b = tf.Variable(tf.random_normal(shape=[1, 1]))
+    # 定义损失函数
+    model_output = tf.matmul(x_data, W) + b
+    l2_norm = tf.reduce_sum(tf.square(W))
+    # 软正则化参数
+    alpha = tf.constant([0.1])
+    # 定义损失函数
+    classification_term = tf.reduce_mean(tf.maximum(0., 1. - model_output * y_target))
+    loss = classification_term + alpha * l2_norm
+    # 输出
+    prediction = tf.sign(model_output)
+    saver = tf.train.Saver()
+    sess.run(tf.global_variables_initializer())
+    flag = False
+    with tf.Session() as sess:
+        saver.restore(sess, "./model/model.ckpt")
+        sess.run(prediction, feed_dict={x_data: x_vals}).tolist()
+        predict_list = sess.run(prediction, feed_dict={x_data: x_vals}).tolist()
+        words = Dictionary.objects.all()
+        for result in predict_list:
+            if result[0] == 1.0:
+                flag = True
+    return flag
 
 
 def is_in_dic(keyword):
-        word = Dictionary.objects.filter(name=keyword)
-        if len(word)==0:
-            return False
+    word = Dictionary.objects.filter(name=keyword)
+    if len(word) == 0:
+        return False
+    else:
+        if word[0].is_industry:
+            Industry.objects.get_or_create(name=word[0].name)
+            return True
         else:
-            if word[0].is_industry:
-                Industry.objects.get_or_create(name=word[0].name)
-                return True
-            else:
-                return False
+            return False
 
 
 def print_data():
@@ -239,28 +274,27 @@ def print_data():
             print(down.name)
 
 
-
 def collect_data(pattern):
-    names = file_name('E:\\bin')#('D:\\temp_data\\temp_data')
-    if pattern==0:
+    names = file_name('E:\\bin')  # ('D:\\temp_data\\temp_data')
+    if pattern == 0:
         for rule in rule_up:
             compile_name = re.compile(rule, re.M)
             company_rule = re.compile(rule_company, re.M)
             for name in names:
                 # print (x+1)
-                if os.path.getsize(name)/float(1024)<100:
+                if os.path.getsize(name) / float(1024) < 100:
                     continue
-                f = open(name,errors='ignore')
+                f = open(name, errors='ignore')
                 st = f.read()
                 res_name = compile_name.finditer(st)
                 company_name = company_rule.finditer(st)
-                y=0
+                y = 0
                 name_company = ""
                 for x in company_name:
-                    if y==0:
-                        name_company=x.group()
-                    y = y+1
-                if y>0:
+                    if y == 0:
+                        name_company = x.group()
+                    y = y + 1
+                if y > 0:
                     Company.objects.get_or_create(name=name_company)
                 else:
                     continue
@@ -268,7 +302,7 @@ def collect_data(pattern):
                     seg_list = jieba.cut(m.group(), cut_all=False)
                     for word in seg_list:
                         industries = Industry.objects.all()
-                        print (word)
+                        print(word)
                         is_industry = is_in_dic(word)
                         if not is_industry:
                             continue
@@ -278,25 +312,25 @@ def collect_data(pattern):
                                     company = Company.objects.filter(name=name_company)
                                     company[0].up_link.add(industry)
                                     company[0].save()
-    elif pattern==1:
+    elif pattern == 1:
         for rule in rule_mid:
             compile_name = re.compile(rule, re.M)
             company_rule = re.compile(rule_company, re.M)
             for name in names:
                 # print (x+1)
-                if os.path.getsize(name)/float(1024)<100:
+                if os.path.getsize(name) / float(1024) < 100:
                     continue
-                f = open(name,errors='ignore')
+                f = open(name, errors='ignore')
                 st = f.read()
                 res_name = compile_name.finditer(st)
                 company_name = company_rule.finditer(st)
-                y=0
+                y = 0
                 name_company = ""
                 for x in company_name:
-                    if y==0:
-                        name_company=x.group()
-                    y = y+1
-                if y>0:
+                    if y == 0:
+                        name_company = x.group()
+                    y = y + 1
+                if y > 0:
                     Company.objects.get_or_create(name=name_company)
                 else:
                     continue
@@ -304,7 +338,7 @@ def collect_data(pattern):
                     seg_list = jieba.cut(m.group(), cut_all=False)
                     for word in seg_list:
                         industries = Industry.objects.all()
-                        print (word)
+                        print(word)
                         is_industry = is_in_dic(word)
                         if not is_industry:
                             continue
@@ -314,25 +348,25 @@ def collect_data(pattern):
                                     company = Company.objects.filter(name=name_company)
                                     company[0].mid_link.add(industry)
                                     company[0].save()
-    elif pattern==2:
+    elif pattern == 2:
         for rule in rule_down:
             compile_name = re.compile(rule, re.M)
             company_rule = re.compile(rule_company, re.M)
             for name in names:
                 # print (x+1)
-                if os.path.getsize(name)/float(1024)<100:
+                if os.path.getsize(name) / float(1024) < 100:
                     continue
-                f = open(name,errors='ignore')
+                f = open(name, errors='ignore')
                 st = f.read()
                 res_name = compile_name.finditer(st)
                 company_name = company_rule.finditer(st)
-                y=0
+                y = 0
                 name_company = ""
                 for x in company_name:
-                    if y==0:
-                        name_company=x.group()
-                    y = y+1
-                if y>0:
+                    if y == 0:
+                        name_company = x.group()
+                    y = y + 1
+                if y > 0:
                     Company.objects.get_or_create(name=name_company)
                 else:
                     continue
@@ -340,7 +374,7 @@ def collect_data(pattern):
                     seg_list = jieba.cut(m.group(), cut_all=False)
                     for word in seg_list:
                         industries = Industry.objects.all()
-                        print (word)
+                        print(word)
                         is_industry = is_in_dic(word)
                         if not is_industry:
                             continue
@@ -367,13 +401,13 @@ def collectSentence():
         punct = re.compile(r'[。？！：]')
         sentences = punct.split(st)
         words = Dictionary.objects.all()
-        counter=1
+        counter = 1
         for sentence in sentences:
             for word in words:
                 if word.is_industry and word.name in sentence:
                     Sentence.objects.create(content=sentence)
                     print(counter)
-                    counter = counter+1
+                    counter = counter + 1
                     break
 
 
@@ -396,6 +430,7 @@ num_layers = 2
 epoch = 80
 batch_size = 20
 learning_rate = 0.003
+
 
 class Model:
     def __init__(self):
@@ -514,6 +549,146 @@ def get_train_test_data():
     return np.array(train_input), np.array(train_output), np.array(test_input), np.array(test_output), word_sentence
 
 
+class Model(object):
+    def __init__(self, name):
+        self.type_size = 2
+        self.word_size = 256
+        self.lstm_size = 100
+        # self.transe_size = 100
+        self.dev = 0.01
+        self.hidden_layer = 50
+        self.window = 5
+        self.scope = "root_train_second" if name == "KA+D" else "root"
+
+        self.predict()
+        self.saver = tf.train.Saver(max_to_keep=100)
+        self.initializer = tf.global_variables_initializer()
+
+    def entity(self):
+        self.entity_in = tf.placeholder(tf.float32, [None, self.word_size])
+        self.batch_size = tf.shape(self.entity_in)[0]
+        self.kprob = tf.placeholder(tf.float32)
+        entity_drop = tf.nn.dropout(self.entity_in, self.kprob)
+        return entity_drop
+
+    def attention(self):
+        # this method will be overrided by derived classes
+        pass
+
+    def context(self):
+        # from middle to side
+        self.left_in = [tf.placeholder(tf.float32, [None, self.word_size]) \
+                        for _ in range(self.window)]
+        self.right_in = [tf.placeholder(tf.float32, [None, self.word_size]) \
+                         for _ in range(self.window)]
+
+        # from side to middle
+        self.left_in_rev = [self.left_in[self.window - 1 - i] for i in range(self.window)]
+        self.right_in_rev = [self.right_in[self.window - 1 - i] for i in range(self.window)]
+
+        left_middle_lstm = tf.nn.rnn_cell.LSTMCell(self.lstm_size)
+        right_middle_lstm = tf.nn.rnn_cell.LSTMCell(self.lstm_size)
+        left_side_lstm = tf.nn.rnn_cell.LSTMCell(self.lstm_size)
+        right_side_lstm = tf.nn.rnn_cell.LSTMCell(self.lstm_size)
+
+        with tf.variable_scope(self.scope):
+            with tf.variable_scope('lstm'):
+                # from side to middle
+                left_out_rev, _ = tf.nn.static_rnn(left_middle_lstm, self.left_in_rev, dtype=tf.float32)
+            with tf.variable_scope('lstm', reuse=True):
+                # from side to middle
+                right_out_rev, _ = tf.nn.static_rnn(right_middle_lstm, self.right_in_rev, dtype=tf.float32)
+
+                # from middle to side
+                left_out, _ = tf.nn.static_rnn(left_side_lstm, self.left_in, dtype=tf.float32)
+                right_out, _ = tf.nn.static_rnn(right_side_lstm, self.right_in, dtype=tf.float32)
+
+        self.left_att_in = [tf.concat([left_out[i], left_out_rev[self.window - 1 - i]], 1) \
+                            for i in range(self.window)]
+        self.right_att_in = [tf.concat([right_out[i], right_out_rev[self.window - 1 - i]], 1) \
+                             for i in range(self.window)]
+
+        left_att, right_att = self.attention()
+
+        left_weighted = reduce(tf.add,
+                               [self.left_att_in[i] * left_att[i] for i in range(self.window)])
+        right_weighted = reduce(tf.add,
+                                [self.right_att_in[i] * right_att[i] for i in range(self.window)])
+
+        left_all = reduce(tf.add, [left_att[i] for i in range(self.window)])
+        right_all = reduce(tf.add, [right_att[i] for i in range(self.window)])
+
+        return tf.concat([left_weighted / left_all, right_weighted / right_all], 1)
+
+    def predict(self):
+        # this method will be overrided by derived classes
+        pass
+
+    def fdict(self, now, size, interval, _entity, _context, _label):
+        # this method will be overrided by derived classes
+        pass
+
+    def mag(self, matrix):
+        return tf.reduce_sum(tf.pow(matrix, 2))
+
+    def cross_entropy(self, predicted, truth):
+        return -tf.reduce_sum(truth * tf.log(predicted + 1e-10)) \
+               - tf.reduce_sum((1 - truth) * tf.log(1 - predicted + 1e-10))
+
+
+class SA(Model):
+    def attention(self):
+        W1 = tf.Variable(tf.random_normal([self.lstm_size * 2, self.hidden_layer], stddev=self.dev))
+        W2 = tf.Variable(tf.random_normal([self.hidden_layer, 1], stddev=self.dev))
+
+        left_att = [tf.exp(tf.matmul(tf.tanh(tf.matmul(self.left_att_in[i], W1)), W2)) \
+                    for i in range(self.window)]
+        right_att = [tf.exp(tf.matmul(tf.tanh(tf.matmul(self.right_att_in[i], W1)), W2)) \
+                     for i in range(self.window)]
+
+        return (left_att, right_att)
+
+    def predict(self):
+        x = tf.concat([self.entity(), self.context()], 1)
+
+        W = tf.Variable(tf.random_normal([self.word_size + self.lstm_size * 4, self.type_size],
+                                         stddev=self.dev))
+        self.t = tf.nn.sigmoid(tf.matmul(x, W))
+        self.t_ = tf.placeholder(tf.float32, [None, self.type_size])
+
+        self.loss = self.cross_entropy(self.t, self.t_)
+        self.train = tf.train.AdamOptimizer(0.005).minimize(self.loss)
+
+    def fdict(self, now, size, interval, _entity, _context, _label):
+        fd = {}
+        new_size = int(size / interval)
+
+        ent = np.zeros([new_size, self.word_size])
+        lab = np.zeros([new_size, self.type_size])
+        for i in range(new_size):
+            vec = _entity[now + i * interval]
+            ent[i] = vec
+            lab[i] = _label[now + i * interval]
+        fd[self.entity_in] = ent
+        fd[self.t_] = lab
+
+        for j in range(self.window):
+            left_con = np.zeros([new_size, self.word_size])
+            right_con = np.zeros([new_size, self.word_size])
+            for i in range(new_size):
+                left_con[i, :] = _context[now + i * interval][2 * j]
+                right_con[i, :] = _context[now + i * interval][2 * j + 1]
+            fd[self.left_in[j]] = left_con
+            fd[self.right_in[j]] = right_con
+
+        return fd
+
+
+batch_size = 500
+iter_num = 2000
+check_freq = 100
+
+
 def train():
     train_inp, train_out, test_a_inp, test_a_out, word_sentence = get_train_test_data()
     for sentence in word_sentence:
@@ -536,3 +711,382 @@ def train():
             f1(pred, test_a_out, length)
             for z in pred:
                 print(z)
+
+
+def delete_word():
+    words = Context.objects.all()
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    for word in words:
+        entity = word.entity
+        up1 = word.up1
+        up2 = word.up2
+        up3 = word.up3
+        up4 = word.up4
+        up5 = word.up5
+        down1 = word.down1
+        down2 = word.down2
+        down3 = word.down3
+        down4 = word.down4
+        down5 = word.down5
+        word_list = [entity, up1, up2, up3, up4, up5, down1, down2, down3, down4, down5]
+        for x in word_list:
+            if x == '#':
+                continue
+            try:
+                y = model[x]
+            except  KeyError:
+                print(x)
+                Context.objects.filter(entity=x).update(entity='#')
+                Context.objects.filter(up1=x).update(up1='#')
+                Context.objects.filter(up2=x).update(up2='#')
+                Context.objects.filter(up3=x).update(up3='#')
+                Context.objects.filter(up4=x).update(up4='#')
+                Context.objects.filter(up5=x).update(up5='#')
+                Context.objects.filter(down1=x).update(down1='#')
+                Context.objects.filter(down2=x).update(down2='#')
+                Context.objects.filter(down3=x).update(down3='#')
+                Context.objects.filter(down4=x).update(down4='#')
+                Context.objects.filter(down5=x).update(down5='#')
+
+
+def delete_word2():
+    words = ContextTest.objects.all()
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    for word in words:
+        entity = word.entity
+        up1 = word.up1
+        up2 = word.up2
+        up3 = word.up3
+        up4 = word.up4
+        up5 = word.up5
+        down1 = word.down1
+        down2 = word.down2
+        down3 = word.down3
+        down4 = word.down4
+        down5 = word.down5
+        word_list = [entity, up1, up2, up3, up4, up5, down1, down2, down3, down4, down5]
+        for x in word_list:
+            if x == '#':
+                continue
+            try:
+                y = model[x]
+            except  KeyError:
+                print(x)
+                ContextTest.objects.filter(entity=x).update(entity='#')
+                ContextTest.objects.filter(up1=x).update(up1='#')
+                ContextTest.objects.filter(up2=x).update(up2='#')
+                ContextTest.objects.filter(up3=x).update(up3='#')
+                ContextTest.objects.filter(up4=x).update(up4='#')
+                ContextTest.objects.filter(up5=x).update(up5='#')
+                ContextTest.objects.filter(down1=x).update(down1='#')
+                ContextTest.objects.filter(down2=x).update(down2='#')
+                ContextTest.objects.filter(down3=x).update(down3='#')
+                ContextTest.objects.filter(down4=x).update(down4='#')
+                ContextTest.objects.filter(down5=x).update(down5='#')
+
+
+def delete_word3():
+    words = Article.objects.all()
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    for word in words:
+        entity = word.entity
+        up1 = word.up1
+        up2 = word.up2
+        up3 = word.up3
+        up4 = word.up4
+        up5 = word.up5
+        down1 = word.down1
+        down2 = word.down2
+        down3 = word.down3
+        down4 = word.down4
+        down5 = word.down5
+        word_list = [entity, up1, up2, up3, up4, up5, down1, down2, down3, down4, down5]
+        for x in word_list:
+            if x == '#':
+                continue
+            try:
+                y = model[x]
+            except  KeyError:
+                print(x)
+                Article.objects.filter(entity=x).update(entity='#')
+                Article.objects.filter(up1=x).update(up1='#')
+                Article.objects.filter(up2=x).update(up2='#')
+                Article.objects.filter(up3=x).update(up3='#')
+                Article.objects.filter(up4=x).update(up4='#')
+                Article.objects.filter(up5=x).update(up5='#')
+                Article.objects.filter(down1=x).update(down1='#')
+                Article.objects.filter(down2=x).update(down2='#')
+                Article.objects.filter(down3=x).update(down3='#')
+                Article.objects.filter(down4=x).update(down4='#')
+                Article.objects.filter(down5=x).update(down5='#')
+
+
+def get_train_data():
+    entities = []
+    context = []
+    label = []
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    words = Context.objects.all()
+    for word in words:
+        entities.append(dic(model, word.entity))
+        up1 = dic(model, word.up1)
+        up2 = dic(model, word.up2)
+        up3 = dic(model, word.up3)
+        up4 = dic(model, word.up4)
+        up5 = dic(model, word.up5)
+        down1 = dic(model, word.down1)
+        down2 = dic(model, word.down2)
+        down3 = dic(model, word.down3)
+        down4 = dic(model, word.down4)
+        down5 = dic(model, word.down5)
+        sentence = [up1, down1, up2, down2, up3, down3, up4, down4, up5, down5]
+        context.append(sentence)
+        if word.div_type == 0:
+            label.append([1, 0])
+        elif word.div_type == 1:
+            label.append([0, 1])
+        else:
+            label.append([0, 1])
+    return np.array(entities[0:4500]), np.array(context[0:4500]), np.array(label[0:4500])
+
+
+def get_test_data():
+    entities = []
+    context = []
+    label = []
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    words = ContextTest.objects.all()
+    for word in words:
+        entities.append(dic(model, word.entity))
+        up1 = dic(model, word.up1)
+        up2 = dic(model, word.up2)
+        up3 = dic(model, word.up3)
+        up4 = dic(model, word.up4)
+        up5 = dic(model, word.up5)
+        down1 = dic(model, word.down1)
+        down2 = dic(model, word.down2)
+        down3 = dic(model, word.down3)
+        down4 = dic(model, word.down4)
+        down5 = dic(model, word.down5)
+        sentence = [up1, down1, up2, down2, up3, down3, up4, down4, up5, down5]
+        context.append(sentence)
+        if word.div_type == 0:
+            label.append([1, 0])
+        elif word.div_type == 1:
+            label.append([0, 1])
+        else:
+            label.append([0, 1])
+    return np.array(entities), np.array(context), np.array(label)
+
+
+def get_article_data():
+    entities = []
+    context = []
+    label = []
+    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    words = Article.objects.all()
+    for word in words:
+        entities.append(dic(model, word.entity))
+        up1 = dic(model, word.up1)
+        up2 = dic(model, word.up2)
+        up3 = dic(model, word.up3)
+        up4 = dic(model, word.up4)
+        up5 = dic(model, word.up5)
+        down1 = dic(model, word.down1)
+        down2 = dic(model, word.down2)
+        down3 = dic(model, word.down3)
+        down4 = dic(model, word.down4)
+        down5 = dic(model, word.down5)
+        sentence = [up1, down1, up2, down2, up3, down3, up4, down4, up5, down5]
+        context.append(sentence)
+        if word.div_type == 0:
+            label.append([1, 0])
+        elif word.div_type == 1:
+            label.append([0, 1])
+        else:
+            label.append([0, 1])
+    return np.array(entities), np.array(context), np.array(label)
+
+
+def analysis():
+    name = 'F:\\tmp_data\\temp_data\\doc.txt'
+    f = open(name, errors='ignore')
+    st = f.read()
+    for j in range(0, len(rules)):
+        compile_name = re.compile(rules[j], re.M)
+        res_name = compile_name.finditer(st)
+        for m in res_name:
+            seg_list = jieba.lcut(m.group(), cut_all=False)
+            if len(seg_list) < 6:
+                continue
+            target_list = []
+            for w in seg_list:
+                if len(w) > 1:
+                    target_list.append(w)
+            print(target_list)
+            if len(target_list) < 5:
+                break
+            for x in range(1, 6):
+                try:
+                    target = target_list.index(keywords[j]) + x
+                except ValueError:
+                    continue
+                try:
+                    tmp_data = target_list[target]
+                except IndexError:
+                    break
+                words_in_sentence = []
+                index = target - 5
+                for i in range(11):
+                    if index == target:
+                        index += 1
+                        continue
+                    if index >= 0:
+                        try:
+                            words_in_sentence.append(target_list[index])
+                        except IndexError:
+                            words_in_sentence.append("#")
+                    else:
+                        words_in_sentence.append("#")
+                    index += 1
+                ContextTest.objects.create(entity=target_list[target], up1=words_in_sentence[0],
+                                           up2=words_in_sentence[1], up3=words_in_sentence[2],
+                                           up4=words_in_sentence[3], up5=words_in_sentence[4],
+                                           down1=words_in_sentence[5], down2=words_in_sentence[6],
+                                           down3=words_in_sentence[7], down4=words_in_sentence[8],
+                                           down5=words_in_sentence[9])
+
+
+def all_predict():
+    words = ContextTest.objects.all()
+    model = SA('SA')
+    sess = tf.Session()
+    sess.run(model.initializer)
+    model.saver.restore(sess, 'model/test2_model')
+    valid_entity, valid_context, valid_label = get_test_data()
+    fd = model.fdict(0, len(valid_entity), 1, valid_entity, valid_context, valid_label)
+    fd[model.kprob] = 1.0
+    showy = sess.run(model.t, feed_dict=fd)
+    showy = np.argmax(showy, 1)
+    print(len(words))
+    print(len(showy))
+    i = 0
+    for word in words:
+        if word.div_type == 1:
+            print("行业词：" + word.entity)
+        elif word.div_type == 2:
+            print("行业词：" + word.entity)
+    print("****************")
+    for x in showy:
+        if x == 1:
+            print("行业词：" + words[i].entity)
+        elif x == 2:
+            print("行业词：" + words[i].entity)
+        i += 1
+
+
+def delete_non_sense_word2():
+    words = Article.objects.all()
+    for word in words:
+        is_sense = True
+        word_list = pseg.cut(word.entity)
+        # words类别为：generator
+        for x, flag in word_list:
+            if flag != 'n' and flag != 'v' and flag != 'vn' and flag != 'j':
+                is_sense = False
+        if not is_sense:
+            Article.objects.filter(entity=word.entity).delete()
+
+
+def article_predict(doc_name):
+    f = open('F:\\tmp_data\\temp_data\\data\\' + doc_name, errors='ignore')
+    st = f.read()
+    sentence_list = re.split(r"；|，|？|。", st)
+    for sentence in sentence_list:
+        for j in range(0, len(keywords)):
+            if keywords[j] in sentence:
+                seg_list = jieba.lcut(sentence, cut_all=False)
+                if len(seg_list) < 6:
+                    continue
+                target_list = []
+                for w in seg_list:
+                    if len(w) > 1:
+                        target_list.append(w)
+                print(target_list)
+                if len(target_list) < 5:
+                    break
+                for x in range(1, 6):
+                    try:
+                        target = target_list.index(keywords[j]) + x
+                    except ValueError:
+                        continue
+                    try:
+                        tmp_data = target_list[target]
+                    except IndexError:
+                        break
+                    words_in_sentence = []
+                    index = target - 5
+                    for i in range(11):
+                        if index == target:
+                            index += 1
+                            continue
+                        if index >= 0:
+                            try:
+                                words_in_sentence.append(target_list[index])
+                            except IndexError:
+                                words_in_sentence.append("#")
+                        else:
+                            words_in_sentence.append("#")
+                        index += 1
+                    if keywords[j] == '上游':
+                        position = '上游'
+                    elif keywords[j] == '下游':
+                        position = '下游'
+                    elif keywords[j] == '应用于':
+                        position = '下游'
+                    else:
+                        position = '中游'
+                    Article.objects.create(entity=target_list[target], position=position, up1=words_in_sentence[0],
+                                           up2=words_in_sentence[1], up3=words_in_sentence[2],
+                                           up4=words_in_sentence[3], up5=words_in_sentence[4],
+                                           down1=words_in_sentence[5], down2=words_in_sentence[6],
+                                           down3=words_in_sentence[7], down4=words_in_sentence[8],
+                                           down5=words_in_sentence[9])
+    delete_non_sense_word2()
+    delete_word3()
+    words = Article.objects.all()
+    model = SA('SA')
+    sess = tf.Session()
+    sess.run(model.initializer)
+    model.saver.restore(sess, 'model/bi_model')
+    valid_entity, valid_context, valid_label = get_article_data()
+    fd = model.fdict(0, len(valid_entity), 1, valid_entity, valid_context, valid_label)
+    fd[model.kprob] = 1.0
+    showy = sess.run(model.t, feed_dict=fd)
+    showy = np.argmax(showy, 1)
+    print(len(words))
+    print(len(showy))
+    i = 0
+    for x in showy:
+        print("行业词：" + words[i].entity + "  " + words[i].position)
+        i += 1
+        # Article.objects.all().delete()
+
+
+def read_data_from_csv():
+    import csv
+    csv_reader = csv.reader(open("data.csv"))
+    for row in csv_reader:
+        Context.objects.create(entity=row[1],div_type=row[2],up1=row[3],up2=row[4],up3=row[5],up4=row[6],up5=row[7],down1=row[8],down2=row[9],down3=row[10],down4=row[11],down5=row[12])
+
+
+def view_all_industry_words():
+    result = []
+    words = Dictionary.objects.all()
+    for word in words:
+        if word.is_industry:
+            result.append(word.name)
+    for i in range(0,len(result)):
+        print(result[i]+" ",end='')
+        if i%10==0:
+            print("")
