@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from industry.models import *
 from industry.util import *
 
+# 定义的基本关键词规则
 rule_up = [r'(.*)上游(.*)', r'使用(.*)']
 rule_down = [r'(.*)下游(.*)', r'(.*)行业下游情况(.*)', r'应用于(.*)']
 rule_mid = [r'主营业务(.*)']
@@ -18,7 +19,15 @@ rule_company = r'(.*)股份有限公司'
 fields = ['能源', '电力', '冶金', '化工', '机电', '电子', '交通', '房产', '建材', '医药', '农林', '安防', '服装', '包装',
           '环保', '玩具', 'IT', '通信', '数码', '家电', '家居', '文教', '办公', '金融', '培训', '旅游', '食品', '烟酒', '礼品']
 
-
+# 数据文件路径
+word2vec_model_path = 'D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx'
+word2vec_train_path = 'F:\\data'
+sougo_news_souce_path = 'E:\\temp_data\\tmp'
+sougo_news_save_path = r'D:\news.txt'
+report_source_path = 'E:\\bin'
+stop_word_path = 'F:\\stopword.txt'
+data_path = 'F:\\tmp_data\\temp_data\\data'
+# 获取某个文件夹下的所有文件
 def file_name(file_dir):
     L = []
     for root, dirs, files in os.walk(file_dir):
@@ -28,9 +37,10 @@ def file_name(file_dir):
     return L
 
 
+# word2vec语料库分词
 def train_data_build():
     file = r'F:\train_data.txt'
-    names = file_name('F:\\data')
+    names = file_name(word2vec_train_path)
     for name in names:
         f = open(name, errors='ignore')
         st = f.read()
@@ -41,6 +51,7 @@ def train_data_build():
         f.close()
 
 
+# word2vec语料库训练
 def train_data():
     from gensim.models import word2vec
     sentences = word2vec.Text8Corpus('F:\\train_data.txt')
@@ -48,11 +59,12 @@ def train_data():
     model.save('word2vec_model')
 
 
+# 搜狗语料库从XML中提取新闻内容
 def getXMLContent():
-    names = file_name('E:\\temp_data\\tmp')
+    names = file_name(sougo_news_souce_path)
     rule1 = r'<contenttitle>(.+?)</contenttitle>'
     rule2 = r'<content>(.+?)</content>'
-    file = r'D:\news.txt'
+    file = sougo_news_save_path
     compile_name = re.compile(rule1, re.M)
     compile_name2 = re.compile(rule2, re.M)
     for name in names:
@@ -75,7 +87,7 @@ def getXMLContent():
 def buildData():
     rule = r'(.*)行业'
     compile_name = re.compile(rule, re.M)
-    names = file_name('E:\\temp_data\\tmp')
+    names = file_name(sougo_news_souce_path)
     for name in names:
         f = open(name, errors='ignore')
         st = f.read()
@@ -96,10 +108,11 @@ def buildData():
                 Dictionary.objects.get_or_create(name=word)
 
 
+# 支持向量机分类
 def SVM():
     sess = tf.Session()
     words = Divided.objects.all()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     x_vals = np.array([model[word.name].tolist() for word in words])
     y_vals = np.array([1 if word.is_industry else -1 for word in words])
     train_indices = np.random.choice(len(x_vals), round(len(x_vals) * 0.8), replace=False)
@@ -157,6 +170,7 @@ def SVM():
     plt.show()
 
 
+# 分割出一个训练集
 def buildDivided():
     counter = 238
     while counter < 1400:
@@ -165,9 +179,10 @@ def buildDivided():
         counter = counter + 1
 
 
-def delete_word():
+# 删除语料库中不存在的词汇
+def delete_word_SVM():
     words = Dictionary.objects.all()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     for word in words:
         try:
             x = model[word.name]
@@ -176,9 +191,10 @@ def delete_word():
             Dictionary.objects.get(name=word.name).delete()
 
 
+# 使用SVM模型训练
 def predict_word():
     sess = tf.Session()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     # x_vals = np.array([model[keyword].tolist()])
     words = Dictionary.objects.all()
     x_vals = np.array([model[word.name].tolist() for word in words])
@@ -211,6 +227,7 @@ def predict_word():
             # precision 95/104   recall:95/125
 
 
+# 预测单个词
 def predict_single_word_with_svm(word):
     sess = tf.Session()
     model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
@@ -244,6 +261,7 @@ def predict_single_word_with_svm(word):
     return flag
 
 
+# 判断词汇是否在词典中
 def is_in_dic(keyword):
     word = Dictionary.objects.filter(name=keyword)
     if len(word) == 0:
@@ -256,6 +274,7 @@ def is_in_dic(keyword):
             return False
 
 
+# 打印数据
 def print_data():
     companies = Company.objects.all()
     for company in companies:
@@ -274,8 +293,9 @@ def print_data():
             print(down.name)
 
 
+# 收集企业报告中的数据，patter：0,1,2分别代表上游中游和下游
 def collect_data(pattern):
-    names = file_name('E:\\bin')  # ('D:\\temp_data\\temp_data')
+    names = file_name(report_source_path)  # ('D:\\temp_data\\temp_data')
     if pattern == 0:
         for rule in rule_up:
             compile_name = re.compile(rule, re.M)
@@ -386,13 +406,15 @@ def collect_data(pattern):
                                     company[0].save()
 
 
+
+# 创建停用词词典
 def buildStop():
-    for line in open('F:\\stopword.txt'):
+    for line in open(stop_word_path):
         StopWord.objects.get_or_create(name=line)
 
 
 def collectSentence():
-    names = file_name('D:\\temp_data\\temp_data')
+    names = file_name(report_source_path)
     for name in names:
         if os.path.getsize(name) / float(1024) < 100:
             continue
@@ -415,11 +437,8 @@ def collectSentence():
 rules = [r'(.*)上游(.*)', r'下游(.*)', r'(.*)应用于(.*)']
 keywords = ['上游', '下游', '应用']
 
-# you should change the path to your own  model path
-word2vec_model_path = 'D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx'
 
-# you should change the path to your own data path
-data_path = 'F:\\tmp_data\\temp_data\\data'
+
 
 # parameters used while training
 sentence_length = 15
@@ -1071,13 +1090,6 @@ def article_predict(doc_name):
         print("行业词：" + words[i].entity + "  " + words[i].position)
         i += 1
         # Article.objects.all().delete()
-
-
-def read_data_from_csv():
-    import csv
-    csv_reader = csv.reader(open("data.csv"))
-    for row in csv_reader:
-        Context.objects.create(entity=row[1],div_type=row[2],up1=row[3],up2=row[4],up3=row[5],up4=row[6],up5=row[7],down1=row[8],down2=row[9],down3=row[10],down4=row[11],down5=row[12])
 
 
 def view_all_industry_words():
