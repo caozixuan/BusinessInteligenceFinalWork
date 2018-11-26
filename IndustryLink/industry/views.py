@@ -230,7 +230,7 @@ def predict_word():
 # 预测单个词
 def predict_single_word_with_svm(word):
     sess = tf.Session()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     # x_vals = np.array([model[keyword].tolist()])
     x_vals = np.array([model[word]])
     x_data = tf.placeholder(shape=[None, 256], dtype=tf.float32)
