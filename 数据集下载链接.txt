@@ -1,0 +1,18 @@
+1.word2vec_model_path对应的是训练好的word2vec。
+链接：https://pan.baidu.com/s/17QRSp2aUV7RZAsKWYS_V1Q 
+
+提取码：sqlk 
+
+2. word2vec_train_path和word2vec_train_data对应的是自己使用的语料库进行词向量训练得到的模型（最后因为效果不好没有使用）
+因为最后没有体现这一部分的成果，不提供链接。
+3. 搜狗新闻语料库，对应sougo_news_souce_path和sougo_news_save_path，提供预处理后的数据。
+链接：https://pan.baidu.com/s/199jcOR7f_46gzkjHlG5v7g 
+
+提取码：j2r8 
+4. 停用词。用于去掉没有意义的词汇
+链接：https://pan.baidu.com/s/1IctchuL_df1Un7z-fhJC3Q 
+
+提取码：3c22
+5. 最重要的企业报告数据集
+
+

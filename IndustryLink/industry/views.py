@@ -21,7 +21,8 @@ fields = ['能源', '电力', '冶金', '化工', '机电', '电子', '交通', 
 
 # 数据文件路径
 word2vec_model_path = 'D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx'
-word2vec_train_path = 'F:\\data'
+word2vec_train_path = 'F:\\data'    #效果不好，没有用到
+word2vec_train_data = r'F:\train_data.txt'
 sougo_news_souce_path = 'E:\\temp_data\\tmp'
 sougo_news_save_path = r'D:\news.txt'
 report_source_path = 'E:\\bin'
@@ -39,7 +40,7 @@ def file_name(file_dir):
 
 # word2vec语料库分词
 def train_data_build():
-    file = r'F:\train_data.txt'
+    file = word2vec_train_data
     names = file_name(word2vec_train_path)
     for name in names:
         f = open(name, errors='ignore')
@@ -275,7 +276,7 @@ def is_in_dic(keyword):
 
 
 # 打印数据
-def print_data():
+def print_data_SVM():
     companies = Company.objects.all()
     for company in companies:
         print(company.name)
@@ -406,7 +407,6 @@ def collect_data(pattern):
                                     company[0].save()
 
 
-
 # 创建停用词词典
 def buildStop():
     for line in open(stop_word_path):
@@ -523,7 +523,7 @@ def f1(prediction, target, length):
 
 def get_train_test_data():
     zero = []
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     for i in range(0, 256):
         zero.append(0.1)
     words = Word.objects.all()
@@ -734,7 +734,7 @@ def train():
 
 def delete_word():
     words = Context.objects.all()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     for word in words:
         entity = word.entity
         up1 = word.up1
@@ -770,7 +770,7 @@ def delete_word():
 
 def delete_word2():
     words = ContextTest.objects.all()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     for word in words:
         entity = word.entity
         up1 = word.up1
@@ -806,7 +806,7 @@ def delete_word2():
 
 def delete_word3():
     words = Article.objects.all()
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     for word in words:
         entity = word.entity
         up1 = word.up1
@@ -844,7 +844,7 @@ def get_train_data():
     entities = []
     context = []
     label = []
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     words = Context.objects.all()
     for word in words:
         entities.append(dic(model, word.entity))
@@ -873,7 +873,7 @@ def get_test_data():
     entities = []
     context = []
     label = []
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     words = ContextTest.objects.all()
     for word in words:
         entities.append(dic(model, word.entity))
@@ -902,7 +902,7 @@ def get_article_data():
     entities = []
     context = []
     label = []
-    model = gensim.models.Word2Vec.load('D:\\word2vec\\word2vec_from_weixin\\word2vec\\word2vec_wx')
+    model = gensim.models.Word2Vec.load(word2vec_model_path)
     words = Article.objects.all()
     for word in words:
         entities.append(dic(model, word.entity))
@@ -1017,9 +1017,11 @@ def delete_non_sense_word2():
             Article.objects.filter(entity=word.entity).delete()
 
 
-def article_predict(doc_name):
-    f = open('F:\\tmp_data\\temp_data\\data\\' + doc_name, errors='ignore')
+def article_predict(doc_name_include_path):
+    f = open(doc_name_include_path, errors='ignore')
     st = f.read()
+    company_rule = re.compile(rule_company, re.M)
+    company_name = company_rule.finditer(st)
     sentence_list = re.split(r"；|，|？|。", st)
     for sentence in sentence_list:
         for j in range(0, len(keywords)):
@@ -1071,6 +1073,7 @@ def article_predict(doc_name):
                                            down1=words_in_sentence[5], down2=words_in_sentence[6],
                                            down3=words_in_sentence[7], down4=words_in_sentence[8],
                                            down5=words_in_sentence[9])
+
     delete_non_sense_word2()
     delete_word3()
     words = Article.objects.all()
@@ -1086,13 +1089,14 @@ def article_predict(doc_name):
     print(len(words))
     print(len(showy))
     i = 0
+    print(company_name)
     for x in showy:
         print("行业词：" + words[i].entity + "  " + words[i].position)
         i += 1
-        # Article.objects.all().delete()
+        Article.objects.all().delete()
 
 
-def view_all_industry_words():
+def view_all_industry_words_SVM():
     result = []
     words = Dictionary.objects.all()
     for word in words:
@@ -1102,3 +1106,10 @@ def view_all_industry_words():
         print(result[i]+" ",end='')
         if i%10==0:
             print("")
+
+
+def view_all_industry_words_lstm():
+    words = Context.objects.all()
+    for word in words:
+        if word.div_type==1 or word.div_type==2:
+            print(word.entity)
