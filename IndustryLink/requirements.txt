@@ -17,7 +17,7 @@ gast==0.2.0
 gensim==3.6.0
 grpcio==1.16.1
 h5py==2.8.0
-html5lib==0.999
+html5lib==0.99999999
 jieba==0.39
 jmespath==0.9.3
 Keras-Applications==1.0.6
